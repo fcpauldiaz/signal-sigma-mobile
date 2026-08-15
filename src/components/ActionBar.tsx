@@ -1,4 +1,5 @@
 import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { useState } from "react";
 import { Alert, StyleSheet, Switch, Text, View } from "react-native";
 import {
   runPlaceOrders,
@@ -9,6 +10,7 @@ import {
 import { useDeskQueries, useInvalidateDesk } from "../hooks";
 import { useSession } from "../session";
 import { colors, fonts, radius, space } from "../theme";
+import { ConfirmModal, type DeskAction } from "./ConfirmModal";
 import { PressableScale } from "./PressableScale";
 import { StatusDot } from "./StatusDot";
 
@@ -17,6 +19,7 @@ export function ActionBar() {
   const { statusQ } = useDeskQueries();
   const invalidateAll = useInvalidateDesk();
   const qc = useQueryClient();
+  const [pendingAction, setPendingAction] = useState<DeskAction | null>(null);
 
   const rebalanceMut = useMutation({
     mutationFn: runRebalance,
@@ -45,15 +48,11 @@ export function ActionBar() {
       : Boolean(statusQ.data?.execution?.paper);
   const canPlace = canAct && executionEnabled;
 
-  const runLiveGuarded = (label: string, fn: () => void) => {
-    if (mode !== "live") {
-      fn();
-      return;
-    }
-    Alert.alert("Live account", `Run ${label} on the live account?`, [
-      { text: "Cancel", style: "cancel" },
-      { text: "Run", style: "destructive", onPress: fn },
-    ]);
+  const runPendingAction = () => {
+    if (pendingAction === "rebalance") rebalanceMut.mutate();
+    else if (pendingAction === "place") placeMut.mutate();
+    else if (pendingAction === "both") bothMut.mutate();
+    setPendingAction(null);
   };
 
   const error =
@@ -104,21 +103,17 @@ export function ActionBar() {
         <ToolButton
           label={rebalanceMut.isPending ? "Rebalancing" : "Rebalance"}
           disabled={!canAct || rebalanceMut.isPending}
-          onPress={() => rebalanceMut.mutate()}
+          onPress={() => setPendingAction("rebalance")}
         />
         <ToolButton
           label={placeMut.isPending ? "Placing" : "Place orders"}
           disabled={!canPlace || placeMut.isPending}
-          onPress={() =>
-            runLiveGuarded("place orders", () => placeMut.mutate())
-          }
+          onPress={() => setPendingAction("place")}
         />
         <ToolButton
           label={bothMut.isPending ? "Running" : "Rebalance + place"}
           disabled={!canPlace || bothMut.isPending}
-          onPress={() =>
-            runLiveGuarded("rebalance + place", () => bothMut.mutate())
-          }
+          onPress={() => setPendingAction("both")}
         />
       </View>
 
@@ -126,6 +121,13 @@ export function ActionBar() {
         <StatusDot tone="warn" label={`${mode} execution off`} />
       )}
       {error && <Text style={styles.error}>{error.message}</Text>}
+
+      <ConfirmModal
+        action={pendingAction}
+        mode={mode}
+        onConfirm={runPendingAction}
+        onClose={() => setPendingAction(null)}
+      />
     </View>
   );
 }
