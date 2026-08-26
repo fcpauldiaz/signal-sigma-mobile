@@ -18,8 +18,10 @@ import {
   hydrateSession,
   login as apiLogin,
   logout as apiLogout,
+  setAssetFilter as persistAssetFilter,
   setAuthToken,
   setTradingMode,
+  type AssetFilter,
   type TradingMode,
 } from "./api";
 import { registerDeskPush } from "./notifications";
@@ -28,10 +30,12 @@ type Session = {
   ready: boolean;
   token: string | null;
   mode: TradingMode;
+  assetFilter: AssetFilter;
   authEnabled: boolean;
   authenticated: boolean;
   needsLogin: boolean;
   setMode: (mode: TradingMode) => void;
+  setAssetFilter: (filter: AssetFilter) => void;
   login: (password: string) => Promise<void>;
   logout: () => Promise<void>;
 };
@@ -43,11 +47,13 @@ function SessionInner({ children }: { children: ReactNode }) {
   const [ready, setReady] = useState(false);
   const [token, setToken] = useState<string | null>(null);
   const [mode, setModeState] = useState<TradingMode>("paper");
+  const [assetFilter, setAssetFilterState] = useState<AssetFilter>("all");
 
   useEffect(() => {
     void hydrateSession().then((session) => {
       setToken(session.token);
       setModeState(session.mode);
+      setAssetFilterState(session.assetFilter);
       setReady(true);
     });
   }, []);
@@ -85,6 +91,7 @@ function SessionInner({ children }: { children: ReactNode }) {
       ready,
       token,
       mode,
+      assetFilter,
       authEnabled,
       authenticated,
       needsLogin,
@@ -92,6 +99,10 @@ function SessionInner({ children }: { children: ReactNode }) {
         setTradingMode(next);
         setModeState(next);
         void qc.invalidateQueries();
+      },
+      setAssetFilter: (next) => {
+        persistAssetFilter(next);
+        setAssetFilterState(next);
       },
       login: async (password) => {
         const data = await apiLogin(password);
@@ -106,7 +117,7 @@ function SessionInner({ children }: { children: ReactNode }) {
         void qc.invalidateQueries({ queryKey: ["auth"] });
       },
     }),
-    [ready, token, mode, authEnabled, authenticated, needsLogin, qc]
+    [ready, token, mode, assetFilter, authEnabled, authenticated, needsLogin, qc]
   );
 
   return (

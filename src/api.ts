@@ -2,6 +2,7 @@ import { Platform } from "react-native";
 import * as SecureStore from "expo-secure-store";
 
 export type TradingMode = "paper" | "live";
+export type AssetFilter = "all" | "stocks" | "options";
 
 export interface AuthStatus {
   authEnabled: boolean;
@@ -45,6 +46,15 @@ export interface StatusResponse {
   execution?: {
     paper: boolean;
     live: boolean;
+  };
+  schwab?: {
+    ok: boolean;
+    configured: boolean;
+    needsReauth: boolean;
+    message: string;
+    accountId: string | null;
+    refreshExpiresAt: string | null;
+    totalEquity: number | null;
   };
   schedules: {
     rebalance: string;
@@ -113,6 +123,7 @@ export interface PositionsResponse {
     lastPrice: number;
     ownershipPrice: number;
     strategy: string | null;
+    systemClassification?: string | null;
     value: number;
     percent: number;
   }>;
@@ -126,6 +137,7 @@ export interface PerformanceResponse {
   balances: PositionsResponse["balances"];
   totals: {
     realizedPl: number;
+    realizedYtd?: number;
     tradeCount: number;
     winners: number;
     losers: number;
@@ -136,6 +148,13 @@ export interface PerformanceResponse {
     date: string;
     cumulative: number;
     gainLoss: number;
+    symbol: string;
+    quantity: number;
+    cost: number;
+    proceeds: number;
+    gainLossPercent: number;
+    openDate: string;
+    closeDate: string;
   }>;
   recentClosed: Array<{
     symbol: string;
@@ -149,6 +168,31 @@ export interface PerformanceResponse {
   }>;
 }
 
+export interface SchwabConnection {
+  connected: boolean;
+  configured: boolean;
+  needsReauth: boolean;
+  message: string;
+  refreshExpiresAt: string | null;
+}
+
+export interface SchwabPositionsResponse extends SchwabConnection {
+  accountId: string;
+  balances: PositionsResponse["balances"];
+  brokerPositions: PositionsResponse["brokerPositions"];
+}
+
+export interface SchwabPerformanceResponse extends SchwabConnection {
+  accountId: string;
+  balances: PositionsResponse["balances"];
+  historyFrom: string | null;
+  historyTo: string | null;
+  totals: PerformanceResponse["totals"];
+  monthly: PerformanceResponse["monthly"];
+  cumulativeSeries: PerformanceResponse["cumulativeSeries"];
+  recentClosed: PerformanceResponse["recentClosed"];
+}
+
 const API_URL = (
   process.env.EXPO_PUBLIC_API_URL ??
   "https://signal-sigma.chapilabs.com"
@@ -156,9 +200,11 @@ const API_URL = (
 
 const TOKEN_KEY = "signal_sigma_token";
 const MODE_KEY = "signal_sigma_mode";
+const FILTER_KEY = "signal_sigma_asset_filter";
 
 let _authToken: string | null = null;
 let _tradingMode: TradingMode = "paper";
+let _assetFilter: AssetFilter = "all";
 
 async function storageGet(key: string): Promise<string | null> {
   if (Platform.OS === "web") {
@@ -188,13 +234,18 @@ async function storageSet(key: string, value: string | null): Promise<void> {
 export async function hydrateSession(): Promise<{
   token: string | null;
   mode: TradingMode;
+  assetFilter: AssetFilter;
 }> {
   const token = await storageGet(TOKEN_KEY);
   const modeRaw = await storageGet(MODE_KEY);
+  const filterRaw = await storageGet(FILTER_KEY);
   const mode: TradingMode = modeRaw === "live" ? "live" : "paper";
+  const assetFilter: AssetFilter =
+    filterRaw === "stocks" || filterRaw === "options" ? filterRaw : "all";
   _authToken = token;
   _tradingMode = mode;
-  return { token, mode };
+  _assetFilter = assetFilter;
+  return { token, mode, assetFilter };
 }
 
 export function getAuthToken(): string | null {
@@ -213,6 +264,15 @@ export function getTradingMode(): TradingMode {
 export function setTradingMode(mode: TradingMode): void {
   _tradingMode = mode;
   void storageSet(MODE_KEY, mode);
+}
+
+export function getAssetFilter(): AssetFilter {
+  return _assetFilter;
+}
+
+export function setAssetFilter(filter: AssetFilter): void {
+  _assetFilter = filter;
+  void storageSet(FILTER_KEY, filter);
 }
 
 function authHeaders(): Record<string, string> {
@@ -288,6 +348,33 @@ export async function fetchPerformance(): Promise<PerformanceResponse> {
   });
   if (!r.ok) throw new Error(await parseError(r));
   return r.json() as Promise<PerformanceResponse>;
+}
+
+export async function fetchSchwabAuthUrl(): Promise<{
+  url: string;
+  callbackUrl: string | null;
+}> {
+  const r = await fetch(`${API_URL}/api/schwab/auth/url`, {
+    headers: authHeaders(),
+  });
+  if (!r.ok) throw new Error(await parseError(r));
+  return r.json() as Promise<{ url: string; callbackUrl: string | null }>;
+}
+
+export async function fetchSchwabPositions(): Promise<SchwabPositionsResponse> {
+  const r = await fetch(`${API_URL}/api/schwab/positions`, {
+    headers: authHeaders(),
+  });
+  if (!r.ok) throw new Error(await parseError(r));
+  return r.json() as Promise<SchwabPositionsResponse>;
+}
+
+export async function fetchSchwabPerformance(): Promise<SchwabPerformanceResponse> {
+  const r = await fetch(`${API_URL}/api/schwab/performance`, {
+    headers: authHeaders(),
+  });
+  if (!r.ok) throw new Error(await parseError(r));
+  return r.json() as Promise<SchwabPerformanceResponse>;
 }
 
 export async function updateExecution(patch: {

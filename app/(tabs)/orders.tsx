@@ -8,10 +8,9 @@ import { useDeskQueries } from "../../src/hooks";
 import { space } from "../../src/theme";
 
 export default function OrdersScreen() {
-  const { ordersQ } = useDeskQueries();
+  const { ordersQ, assetFilter, filteredOrders } = useDeskQueries();
   const data = ordersQ.data;
-  const orders = data?.orders ?? [];
-  const eligible = orders.filter((o) => o.eligible).length;
+  const eligible = filteredOrders.filter((o) => o.eligible).length;
 
   const onRefresh = () => {
     void ordersQ.refetch();
@@ -45,11 +44,17 @@ export default function OrdersScreen() {
 
   return (
     <ListScreen
-      data={orders}
+      data={filteredOrders}
       keyExtractor={(o) => o.id}
       onRefresh={onRefresh}
       refreshing={ordersQ.isRefetching}
-      empty={<Muted>No pending orders.</Muted>}
+      empty={
+        <Muted>
+          {assetFilter === "all"
+            ? "No pending orders."
+            : `No pending ${assetFilter} orders.`}
+        </Muted>
+      }
       header={
         <View style={{ gap: space[16], marginBottom: space[8] }}>
           <ScreenHeader kicker="Open orders" title="Orders">
@@ -61,7 +66,7 @@ export default function OrdersScreen() {
               label={data.quotesOk ? "Quotes ok" : "Quotes down"}
             />
             <Muted>
-              {eligible} eligible / {orders.length} pending
+              {eligible} eligible / {filteredOrders.length} pending
             </Muted>
           </View>
           {!data.quotesOk ? <ErrorText>{data.quotesMessage}</ErrorText> : null}

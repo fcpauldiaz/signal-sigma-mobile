@@ -1,30 +1,56 @@
 import { StyleSheet, Text, View } from "react-native";
 import { ActionBar } from "../../src/components/ActionBar";
 import { CumulativeChart } from "../../src/components/CumulativeChart";
+import { MetricCard, MetricGrid } from "../../src/components/MetricCard";
 import { Panel } from "../../src/components/Panel";
 import { Screen } from "../../src/components/Screen";
+import { ShareCsvButton } from "../../src/components/ShareCsvButton";
 import { StatusDot } from "../../src/components/StatusDot";
 import { ErrorText, Muted } from "../../src/components/Typography";
+import {
+  calendarYearEt,
+  filteredOpenPl,
+  formatYtd,
+  realizedYtdFromTrades,
+  ytdReturnPct,
+} from "../../src/desk";
 import { money, pct, plClass } from "../../src/format";
 import { useDeskQueries } from "../../src/hooks";
 import { colors, fonts, space } from "../../src/theme";
 
 export default function OverviewScreen() {
-  const { statusQ, ordersQ, positionsQ, perfQ } = useDeskQueries();
+  const {
+    statusQ,
+    ordersQ,
+    positionsQ,
+    perfQ,
+    schwabPositionsQ,
+    schwabPerfQ,
+    assetFilter,
+    filteredPerformance,
+    filteredSchwabPerformance,
+    filteredOrders,
+  } = useDeskQueries();
   const status = statusQ.data;
   const positions = positionsQ.data;
-  const performance = perfQ.data;
+  const performance = filteredPerformance;
+  const schwabPositions = schwabPositionsQ.data;
+  const schwabPerformance = filteredSchwabPerformance;
   const refreshing =
     statusQ.isRefetching ||
     ordersQ.isRefetching ||
     positionsQ.isRefetching ||
-    perfQ.isRefetching;
+    perfQ.isRefetching ||
+    schwabPositionsQ.isRefetching ||
+    schwabPerfQ.isRefetching;
 
   const onRefresh = () => {
     void statusQ.refetch();
     void ordersQ.refetch();
     void positionsQ.refetch();
     void perfQ.refetch();
+    void schwabPositionsQ.refetch();
+    void schwabPerfQ.refetch();
   };
 
   if (statusQ.isError) {
@@ -44,9 +70,57 @@ export default function OverviewScreen() {
   }
 
   const equity = positions?.balances.totalEquity ?? status.tradier.totalEquity;
-  const openPl = positions?.balances.openPl;
+  const openPl = filteredOpenPl(
+    assetFilter,
+    positions?.balances.openPl,
+    positions?.brokerPositions
+  );
   const realized = performance?.totals.realizedPl;
   const mode = status.tradingMode || status.tradier.mode || "—";
+  const tradierYtd = formatYtd(
+    performance?.totals.realizedYtd ??
+      (performance ? realizedYtdFromTrades(performance.recentClosed) : 0),
+    openPl,
+    equity
+  );
+  const schwabOpenPl = filteredOpenPl(
+    assetFilter,
+    schwabPositions?.balances.openPl,
+    schwabPositions?.brokerPositions
+  );
+  const schwabEquity = schwabPositions?.balances.totalEquity;
+  const schwabRealized = schwabPerformance?.totals.realizedPl;
+  const combinedEquity =
+    equity != null || schwabEquity != null
+      ? (equity ?? 0) + (schwabEquity ?? 0)
+      : null;
+  const combinedOpen =
+    openPl != null || schwabOpenPl != null
+      ? (openPl ?? 0) + (schwabOpenPl ?? 0)
+      : null;
+  const combinedRealized =
+    realized != null || schwabRealized != null
+      ? (realized ?? 0) + (schwabRealized ?? 0)
+      : null;
+  const schwabYtd = formatYtd(
+    schwabPerformance?.totals.realizedYtd ??
+      (schwabPerformance
+        ? realizedYtdFromTrades(schwabPerformance.recentClosed)
+        : 0),
+    schwabOpenPl,
+    schwabEquity
+  );
+  const combinedYtdPl =
+    tradierYtd.pl + (schwabPositions?.connected ? schwabYtd.pl : 0);
+  const combinedYtd = {
+    value: `${money(combinedYtdPl)} · ${pct(ytdReturnPct(combinedYtdPl, combinedEquity))}`,
+    tone: plClass(combinedYtdPl),
+  };
+  const schwabLabel = status.schwab?.needsReauth
+    ? "Schwab · re-auth"
+    : status.schwab?.configured
+      ? "Schwab"
+      : "Schwab · off";
 
   return (
     <Screen onRefresh={onRefresh} refreshing={refreshing}>
@@ -69,17 +143,47 @@ export default function OverviewScreen() {
           tone={plClass(realized)}
         />
         <Ticker
-          label="Orders"
-          value={String(ordersQ.data?.pendingCount ?? 0)}
+          label={`YTD · ${calendarYearEt()}`}
+          value={tradierYtd.value}
+          tone={tradierYtd.tone}
         />
+        <Ticker label="Orders" value={String(filteredOrders.length)} />
       </View>
 
       <View style={styles.stats}>
         <StatusDot ok={status.signalSigma.ok} label="Signal Sigma" />
         <StatusDot ok={status.tradier.ok} label="Tradier" />
+        <StatusDot
+          ok={Boolean(status.schwab?.ok)}
+          tone={status.schwab?.needsReauth ? "warn" : undefined}
+          label={schwabLabel}
+        />
       </View>
 
       <ActionBar />
+
+      {schwabPositions?.connected ? (
+        <Panel title="Combined · Tradier + Schwab" meta="two strategies">
+          <MetricGrid>
+            <MetricCard label="Combined equity" value={money(combinedEquity)} />
+            <MetricCard
+              label="Combined open P&L"
+              value={money(combinedOpen)}
+              tone={plClass(combinedOpen)}
+            />
+            <MetricCard
+              label="Combined realized"
+              value={money(combinedRealized)}
+              tone={plClass(combinedRealized)}
+            />
+            <MetricCard
+              label={`Combined YTD · ${calendarYearEt()}`}
+              value={combinedYtd.value}
+              tone={combinedYtd.tone}
+            />
+          </MetricGrid>
+        </Panel>
+      ) : null}
 
       {performance && performance.cumulativeSeries.length > 0 && (
         <Panel
@@ -87,6 +191,22 @@ export default function OverviewScreen() {
           meta={`${performance.totals.tradeCount} closes · win ${pct(performance.totals.winRate)}`}
         >
           <CumulativeChart series={performance.cumulativeSeries} />
+        </Panel>
+      )}
+
+      {performance && performance.recentClosed.length > 0 && (
+        <Panel
+          title={`Last ${performance.recentClosed.length} closes`}
+          meta={
+            <ShareCsvButton
+              trades={performance.recentClosed}
+              mode={performance.mode}
+              accountId={performance.accountId}
+              assetFilter={assetFilter}
+            />
+          }
+        >
+          <Muted>Share the filtered close blotter as CSV.</Muted>
         </Panel>
       )}
 
@@ -166,12 +286,13 @@ const styles = StyleSheet.create({
   },
   ticker: {
     flexDirection: "row",
+    flexWrap: "wrap",
     borderTopWidth: StyleSheet.hairlineWidth,
     borderBottomWidth: StyleSheet.hairlineWidth,
     borderColor: colors.rule,
   },
   tick: {
-    flex: 1,
+    width: "50%",
     paddingVertical: space[12],
     paddingRight: space[8],
   },

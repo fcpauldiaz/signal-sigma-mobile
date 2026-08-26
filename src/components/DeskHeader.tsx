@@ -4,12 +4,21 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useDeskQueries } from "../hooks";
 import { useSession } from "../session";
 import { colors, fonts, space } from "../theme";
+import { AssetFilterSwitch } from "./AssetFilterSwitch";
 import { ModeSwitch } from "./ModeSwitch";
 import { StatusDot } from "./StatusDot";
 
 export function DeskHeader() {
   const insets = useSafeAreaInsets();
-  const { mode, setMode, authEnabled, authenticated, logout } = useSession();
+  const {
+    mode,
+    setMode,
+    assetFilter,
+    setAssetFilter,
+    authEnabled,
+    authenticated,
+    logout,
+  } = useSession();
   const { statusQ } = useDeskQueries();
   const job = statusQ.data?.job;
   const jobRunning = job?.status === "running";
@@ -37,6 +46,7 @@ export function DeskHeader() {
           </Pressable>
         ) : null}
       </View>
+      <AssetFilterSwitch value={assetFilter} onChange={setAssetFilter} />
     </View>
   );
 }
@@ -48,6 +58,7 @@ const styles = StyleSheet.create({
     paddingBottom: space[12],
     borderBottomWidth: StyleSheet.hairlineWidth,
     borderBottomColor: colors.rule,
+    gap: space[8],
   },
   row: {
     flexDirection: "row",

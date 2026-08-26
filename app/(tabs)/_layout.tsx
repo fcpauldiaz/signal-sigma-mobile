@@ -81,6 +81,19 @@ export default function TabLayout() {
           ),
         }}
       />
+      <Tabs.Screen
+        name="schwab"
+        options={{
+          title: "Schwab",
+          tabBarIcon: ({ color, size, focused }) => (
+            <Ionicons
+              name={focused ? "briefcase" : "briefcase-outline"}
+              color={color}
+              size={size}
+            />
+          ),
+        }}
+      />
     </Tabs>
   );
 }

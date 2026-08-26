@@ -1,26 +1,34 @@
 import { View } from "react-native";
 import { CumulativeChart } from "../../src/components/CumulativeChart";
-import { DataCard, MetaLine } from "../../src/components/DataCard";
+import { ClosedTradeCard } from "../../src/components/DataCard";
 import { MetricCard, MetricGrid } from "../../src/components/MetricCard";
 import { MonthlyBars } from "../../src/components/MonthlyBars";
 import { Panel } from "../../src/components/Panel";
 import { ListScreen } from "../../src/components/Screen";
+import { ShareCsvButton } from "../../src/components/ShareCsvButton";
 import {
   ErrorText,
   Muted,
-  PlText,
   ScreenHeader,
 } from "../../src/components/Typography";
+import {
+  calendarYearEt,
+  filteredOpenPl,
+  formatYtd,
+  realizedYtdFromTrades,
+} from "../../src/desk";
 import { money, pct, plClass } from "../../src/format";
 import { useDeskQueries } from "../../src/hooks";
 import { space } from "../../src/theme";
 
 export default function PerformanceScreen() {
-  const { perfQ } = useDeskQueries();
-  const data = perfQ.data;
+  const { perfQ, positionsQ, assetFilter, filteredPerformance } =
+    useDeskQueries();
+  const data = filteredPerformance;
 
   const onRefresh = () => {
     void perfQ.refetch();
+    void positionsQ.refetch();
   };
 
   if (perfQ.isError) {
@@ -49,6 +57,17 @@ export default function PerformanceScreen() {
     );
   }
 
+  const openPl = filteredOpenPl(
+    assetFilter,
+    data.balances.openPl ?? positionsQ.data?.balances.openPl,
+    positionsQ.data?.brokerPositions
+  );
+  const ytd = formatYtd(
+    data.totals.realizedYtd ?? realizedYtdFromTrades(data.recentClosed),
+    openPl,
+    data.balances.totalEquity
+  );
+
   return (
     <ListScreen
       data={data.recentClosed}
@@ -63,9 +82,19 @@ export default function PerformanceScreen() {
           </ScreenHeader>
           <MetricGrid>
             <MetricCard
+              label="Open P&L"
+              value={money(openPl)}
+              tone={plClass(openPl)}
+            />
+            <MetricCard
               label="Realized P&L"
               value={money(data.totals.realizedPl)}
               tone={plClass(data.totals.realizedPl)}
+            />
+            <MetricCard
+              label={`YTD P&L · ${calendarYearEt()}`}
+              value={ytd.value}
+              tone={ytd.tone}
             />
             <MetricCard label="Trades" value={String(data.totals.tradeCount)} />
             <MetricCard label="Win rate" value={pct(data.totals.winRate)} />
@@ -74,6 +103,19 @@ export default function PerformanceScreen() {
               value={`${data.totals.winners} / ${data.totals.losers}`}
             />
           </MetricGrid>
+          <Panel
+            title={`Last ${data.recentClosed.length} closes`}
+            meta={
+              <ShareCsvButton
+                trades={data.recentClosed}
+                mode={data.mode}
+                accountId={data.accountId}
+                assetFilter={assetFilter}
+              />
+            }
+          >
+            <Muted>Share CSV, or scroll the blotter below.</Muted>
+          </Panel>
           <Panel title="Cumulative">
             {data.cumulativeSeries.length > 0 ? (
               <CumulativeChart series={data.cumulativeSeries} />
@@ -90,19 +132,7 @@ export default function PerformanceScreen() {
           </Panel>
         </View>
       }
-      renderItem={({ item: t }) => (
-        <DataCard
-          title={t.symbol}
-          right={<PlText value={t.gainLoss}>{money(t.gainLoss)}</PlText>}
-        >
-          <MetaLine>
-            {t.closeDate.slice(0, 10)} · Qty {t.quantity} · {money(t.proceeds)}
-          </MetaLine>
-          <MetaLine>
-            {t.gainLossPercent?.toFixed?.(1) ?? t.gainLossPercent}%
-          </MetaLine>
-        </DataCard>
-      )}
+      renderItem={({ item: t }) => <ClosedTradeCard trade={t} />}
     />
   );
 }

@@ -60,6 +60,7 @@ const styles = StyleSheet.create({
     fontFamily: fonts.monoMedium,
     fontSize: 18,
     color: colors.ink,
+    flexShrink: 1,
   },
   pos: { color: colors.positive },
   neg: { color: colors.negative },

@@ -35,7 +35,7 @@
           "rebalance",
           "paper trading"
         ],
-        "releaseNotes": "First release: overview, positions, orders, performance, paper/live, and desk actions.",
+        "releaseNotes": "Schwab read-only book, stocks/options filter, year-to-date P&L, inspectable cumulative closes, and CSV share of the blotter.",
         "promoText": "Your Signal Sigma book and Tradier desk, on the phone.",
         "marketingUrl": "https://signal-sigma.chapilabs.com",
         "supportUrl": "https://github.com/fcpauldiaz/signal-sigma",
