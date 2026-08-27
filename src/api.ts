@@ -47,6 +47,9 @@ export interface StatusResponse {
     paper: boolean;
     live: boolean;
   };
+  push?: {
+    devices: number;
+  };
   schwab?: {
     ok: boolean;
     configured: boolean;
@@ -114,6 +117,7 @@ export interface PositionsResponse {
     marketValue: number | null;
     openPl: number | null;
     openPlPercent: number | null;
+    strategy?: string | null;
   }>;
   signalPositions: Array<{
     symbol: string;

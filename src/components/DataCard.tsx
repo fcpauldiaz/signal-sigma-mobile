@@ -40,7 +40,8 @@ export function BrokerPositionCard({
       right={<PlText value={p.openPl}>{money(p.openPl)}</PlText>}
     >
       <MetaLine>
-        Qty {p.quantity} · Avg {money(p.avgCost)} · Last {money(p.lastPrice)}
+        {p.strategy || "—"} · Qty {p.quantity} · Avg {money(p.avgCost)} · Last{" "}
+        {money(p.lastPrice)}
       </MetaLine>
       <MetaLine>
         Mkt {money(p.marketValue)} ·{" "}
