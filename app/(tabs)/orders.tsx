@@ -2,8 +2,13 @@ import { View } from "react-native";
 import { DataCard, MetaLine } from "../../src/components/DataCard";
 import { ListScreen } from "../../src/components/Screen";
 import { StatusDot } from "../../src/components/StatusDot";
-import { ErrorText, Muted, ScreenHeader } from "../../src/components/Typography";
-import { money } from "../../src/format";
+import {
+  ErrorText,
+  Muted,
+  PlText,
+  ScreenHeader,
+} from "../../src/components/Typography";
+import { money, ownershipPlPercent } from "../../src/format";
 import { useDeskQueries } from "../../src/hooks";
 import { space } from "../../src/theme";
 
@@ -72,29 +77,35 @@ export default function OrdersScreen() {
           {!data.quotesOk ? <ErrorText>{data.quotesMessage}</ErrorText> : null}
         </View>
       }
-      renderItem={({ item: o }) => (
-        <DataCard
-          title={`${o.direction}  ${o.symbol}`}
-          right={
-            o.eligible ? (
-              <StatusDot ok label="ready" />
-            ) : (
-              <StatusDot tone="warn" label="no" />
-            )
-          }
-        >
-          <MetaLine>
-            Qty {o.quantity ?? Math.abs(o.amount)} · {o.strategy || "—"}
-          </MetaLine>
-          <MetaLine>
-            Own {money(o.ownershipPrice)} · SS {money(o.price)} · Mkt{" "}
-            {money(o.marketPrice)} · {money(o.value)}
-          </MetaLine>
-          {!o.eligible && o.skipReason ? (
-            <MetaLine>{o.skipReason}</MetaLine>
-          ) : null}
-        </DataCard>
-      )}
+      renderItem={({ item: o }) => {
+        const plPercent = ownershipPlPercent(o.ownershipPrice, o.marketPrice);
+        return (
+          <DataCard
+            title={`${o.direction}  ${o.symbol}`}
+            right={
+              o.eligible ? (
+                <StatusDot ok label="ready" />
+              ) : (
+                <StatusDot tone="warn" label="no" />
+              )
+            }
+          >
+            <MetaLine>
+              Qty {o.quantity ?? Math.abs(o.amount)} · {o.strategy || "—"}
+            </MetaLine>
+            <MetaLine>
+              Own {money(o.ownershipPrice)} · SS {money(o.price)} · Mkt{" "}
+              {money(o.marketPrice)} · {money(o.value)}
+            </MetaLine>
+            <PlText value={plPercent}>
+              P&L {plPercent == null ? "—" : `${plPercent.toFixed(1)}%`}
+            </PlText>
+            {!o.eligible && o.skipReason ? (
+              <MetaLine>{o.skipReason}</MetaLine>
+            ) : null}
+          </DataCard>
+        );
+      }}
     />
   );
 }
